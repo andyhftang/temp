@@ -1,22 +1,43 @@
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-public class Main {
-    public static void main(String[] args) {
-        String var1 = "this is notthing ${ARN:ID:KEY} after the string";
-        Pattern pattern = Pattern.compile("\\$\\{([^:]+):([^:]+):([^}]+)\\}");
-        Matcher matcher = pattern.matcher(var1);
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
-        if (matcher.find()) {
-            String arn = matcher.group(1);
-            String id = matcher.group(2);
-            String key = matcher.group(3);
+@RestController
+public class DNSResolutionController {
 
-            System.out.println("ARN: " + arn);
-            System.out.println("ID: " + id);
-            System.out.println("Key: " + key);
-        } else {
-            System.out.println("No match found");
+    @GetMapping("/resolve-dns")
+    public String resolveDNS(@RequestParam String url, @RequestParam String dnsServer) {
+        try {
+            InetAddress inetAddress;
+            if (isValidIP(dnsServer)) {
+                inetAddress = InetAddress.getByAddress(url, InetAddress.getByName(dnsServer).getAddress());
+            } else {
+                inetAddress = InetAddress.getByAddress(url, InetAddress.getByName(dnsServer).getHostAddress());
+            }
+            return inetAddress.getHostAddress(); // Return the IP address
+        } catch (UnknownHostException e) {
+            return "Could not resolve DNS for " + url;
+        }
+    }
+
+    private boolean isValidIP(String ip) {
+        try {
+            String[] parts = ip.split("\\.");
+            if (parts.length != 4) {
+                return false;
+            }
+            for (String part : parts) {
+                int value = Integer.parseInt(part);
+                if (value < 0 || value > 255) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
         }
     }
 }
