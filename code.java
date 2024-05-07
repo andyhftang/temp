@@ -1,43 +1,60 @@
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.*;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 @RestController
-public class DNSResolutionController {
+public class HealthCheckController {
 
-    @GetMapping("/resolve-dns")
-    public String resolveDNS(@RequestParam String url, @RequestParam String dnsServer) {
+    private final RestTemplate restTemplate;
+
+    public HealthCheckController(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
+
+    @PostMapping("/health-check")
+    public ResponseEntity<String> healthCheck(@RequestBody HealthCheckRequest request) {
         try {
-            InetAddress inetAddress;
-            if (isValidIP(dnsServer)) {
-                inetAddress = InetAddress.getByAddress(url, InetAddress.getByName(dnsServer).getAddress());
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(new URI(request.getUrl()), HttpMethod.valueOf(request.getMethod()), entity, String.class);
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                return ResponseEntity.ok("Health check passed");
             } else {
-                inetAddress = InetAddress.getByAddress(url, InetAddress.getByName(dnsServer).getHostAddress());
+                return ResponseEntity.status(response.getStatusCode()).body("Health check failed");
             }
-            return inetAddress.getHostAddress(); // Return the IP address
-        } catch (UnknownHostException e) {
-            return "Could not resolve DNS for " + url;
+        } catch (URISyntaxException e) {
+            return ResponseEntity.badRequest().body("Invalid URL");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body("Invalid HTTP method");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred");
         }
     }
 
-    private boolean isValidIP(String ip) {
-        try {
-            String[] parts = ip.split("\\.");
-            if (parts.length != 4) {
-                return false;
-            }
-            for (String part : parts) {
-                int value = Integer.parseInt(part);
-                if (value < 0 || value > 255) {
-                    return false;
-                }
-            }
-            return true;
-        } catch (NumberFormatException e) {
-            return false;
+    public static class HealthCheckRequest {
+        private String url;
+        private String method;
+
+        public String getUrl() {
+            return url;
+        }
+
+        public void setUrl(String url) {
+            this.url = url;
+        }
+
+        public String getMethod() {
+            return method;
+        }
+
+        public void setMethod(String method) {
+            this.method = method;
         }
     }
 }
