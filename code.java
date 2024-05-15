@@ -1,60 +1,57 @@
-import org.springframework.http.*;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
+import com.jcraft.jsch.ChannelSftp;
+import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.JSchException;
+import com.jcraft.jsch.Session;
+import com.jcraft.jsch.SftpException;
 
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.io.ByteArrayInputStream;
+import java.util.Vector;
 
-@RestController
-public class HealthCheckController {
+public class SftpUtil {
 
-    private final RestTemplate restTemplate;
+    public static String listFiles(String host, String port, String privateKey) {
+        Session session = null;
+        ChannelSftp channelSftp = null;
 
-    public HealthCheckController(RestTemplate restTemplate) {
-        this.restTemplate = restTemplate;
-    }
-
-    @PostMapping("/health-check")
-    public ResponseEntity<String> healthCheck(@RequestBody HealthCheckRequest request) {
         try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<String> entity = new HttpEntity<>(headers);
+            JSch jsch = new JSch();
+            byte[] privateKeyBytes = privateKey.getBytes();
+            jsch.addIdentity("privateKey", privateKeyBytes, null, null);
 
-            ResponseEntity<String> response = restTemplate.exchange(new URI(request.getUrl()), HttpMethod.valueOf(request.getMethod()), entity, String.class);
+            session = jsch.getSession("username", host, Integer.parseInt(port));
+            session.setConfig("StrictHostKeyChecking", "no");
 
-            if (response.getStatusCode().is2xxSuccessful()) {
-                return ResponseEntity.ok("Health check passed");
-            } else {
-                return ResponseEntity.status(response.getStatusCode()).body("Health check failed");
+            session.connect();
+
+            channelSftp = (ChannelSftp) session.openChannel("sftp");
+            channelSftp.connect();
+
+            Vector<ChannelSftp.LsEntry> fileList = channelSftp.ls(".");
+
+            StringBuilder fileNames = new StringBuilder();
+            for (ChannelSftp.LsEntry entry : fileList) {
+                fileNames.append(entry.getFilename()).append("\n");
             }
-        } catch (URISyntaxException e) {
-            return ResponseEntity.badRequest().body("Invalid URL");
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body("Invalid HTTP method");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred");
+
+            return fileNames.toString();
+        } catch (JSchException | SftpException e) {
+            return "Error: " + e.getMessage();
+        } finally {
+            if (channelSftp != null) {
+                channelSftp.disconnect();
+            }
+            if (session != null) {
+                session.disconnect();
+            }
         }
     }
 
-    public static class HealthCheckRequest {
-        private String url;
-        private String method;
+    public static void main(String[] args) {
+        String host = "your_sftp_host";
+        String port = "22";  // Default SFTP port
+        String privateKey = "your_private_key_content";
 
-        public String getUrl() {
-            return url;
-        }
-
-        public void setUrl(String url) {
-            this.url = url;
-        }
-
-        public String getMethod() {
-            return method;
-        }
-
-        public void setMethod(String method) {
-            this.method = method;
-        }
+        String fileList = listFiles(host, port, privateKey);
+        System.out.println(fileList);
     }
 }
