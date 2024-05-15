@@ -1,15 +1,5 @@
-script {
-                    def docker_compose = [
-                        'version': '3',
-                        'services': [
-                            'redis': [
-                                'image': 'redis',
-                                'container_name': 'redis',
-                                'restart': 'always',
-                                'ports': ['6379:6379'],
-                                'volumes': ['./volumes/data/:/data']
-                            ]
-                        ]
-                    ]
-                    writeYaml file: 'docker-compose.yml', data: docker_compose
-                }
+<dependency>
+    <groupId>com.jcraft</groupId>
+    <artifactId>jsch</artifactId>
+    <version>0.1.55</version>
+</dependency>
